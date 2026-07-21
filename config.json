@@ -1,0 +1,37 @@
+{
+  "agents": {
+    "crewai": {
+      "name": "CrewAI Specialist",
+      "description": "Expert in multi-agent collaboration and complex workflows.",
+      "skills": ["collaboration", "workflow", "multi-step"]
+    },
+    "langgraph": {
+      "name": "LangGraph State Machine",
+      "description": "Specialist in stateful, cyclic graph-based logic.",
+      "skills": ["state_machine", "cycles", "logic"]
+    },
+    "autogen": {
+      "name": "AutoGen Coordinator",
+      "description": "Agent for dynamic conversation and task completion.",
+      "skills": ["conversational", "auto_gen"]
+    },
+    "smolagents": {
+      "name": "smolagents Executor",
+      "description": "Small, efficient tool-calling executor.",
+      "skills": ["execution", "tools", "efficiency"]
+    },
+    "pydantic_ai": {
+      "name": "PydanticAI Handler",
+      "description": "Strictly typed and validated AI handler.",
+      "skills": ["validation", "typed_logic"]
+    },
+    "kimi": {
+      "name": "Kimi Code CLI",
+      "description": "Specialized in high-speed code generation and CLI command optimization.",
+      "skills": ["coding", "cli", "optimization"]
+    }
+  },
+  "defaults": {
+    "orchestrator_prompt": "You are an Orchestrator. Analyze the user's request and decide which specific specialists (crewai, langgraph, autogen, smolagents, pydantic_ai, kimi) are required. Output ONLY a comma-separated list of IDs. Use 'kimi' for heavy coding or terminal-based tasks."
+  }
+}
