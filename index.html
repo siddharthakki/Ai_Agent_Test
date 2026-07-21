@@ -4,28 +4,41 @@
   <meta charset="UTF-8" />
   <title>AI Agent Arena - Unified Workspace</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <style>
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: #020617; }
     ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 10px; }
     ::-webkit-scrollbar-thumb:hover { background: #334155; }
-    .chat-bubble { max-width: 85%; position: relative; }
-    .agent-stream-mini { font-size: 11px; line-height: 1.4; color: #94a3b8; border-left: 2px solid #334155; padding-left: 10px; margin-top: 10px; }
-    @keyframes pulse-soft { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
-    .thinking { animation: pulse-soft 2s infinite; }
+    .agent-status-card { background: #1e1b4b; border-left: 4px solid #6366f1; padding: 12px 16px; border-radius: 12px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; animation: pulse-soft 2s infinite; }
+    .status-text { font-size: 13px; font-weight: bold; color: #818cf8; }
+    .artifact-summary { background: #020617; border: 1px solid #1e293b; border-radius: 8px; padding: 10px; margin-top: 10px; font-size: 11px; color: #94a3b8; display: flex; align-items: center; gap: 8px; cursor: pointer; }
+    .artifact-summary:hover { border-color: #312e81; background: #0f172a; }
+    .chat-bubble { max-width: 85%; margin-bottom: 24px; animation: fadeIn 0.3s ease-out; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .ai-bubble-inner { background: #0f172a; border: 1px solid #1e293b; padding: 24px; border-radius: 24px; border-top-left-radius: 4px; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3); width: 100%; }
+    .user-bubble-inner { background: #4f46e5; padding: 14px 20px; border-radius: 24px; border-top-right-radius: 4px; box-shadow: 0 10px 15px -3px rgba(79, 70, 229, 0.4); }
+    .markdown-body pre { background: #020617 !important; padding: 12px; border-radius: 8px; border: 1px solid #1e293b; overflow-x: auto; margin: 10px 0; }
+    .markdown-body code { color: #818cf8; background: #1e1b4b; padding: 2px 4px; border-radius: 4px; font-family: monospace; }
+    .markdown-body ul { list-style-type: disc; padding-left: 20px; margin: 10px 0; }
+    .markdown-body p { margin: 8px 0; }
+    .agent-stream-mini { font-size: 11px; line-height: 1.5; color: #475569; background: #020617; border-radius: 12px; padding: 16px; margin-top: 12px; max-height: 300px; overflow-y: auto; border: 1px solid #1e293b; white-space: pre-wrap; font-family: monospace; }
+    .log-toggle { font-size: 10px; color: #6366f1; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; margin-top: 12px; font-weight: bold; background: #1e1b4b; padding: 6px 14px; border-radius: 20px; transition: all 0.2s; border: none; }
   </style>
 </head>
 <body class="bg-slate-950 text-slate-100 h-screen flex overflow-hidden font-sans">
   
   <!-- Sidebar: Artifacts & Logs -->
   <aside class="w-80 border-r border-slate-800 flex flex-col bg-slate-900/50">
-    <div class="p-4 border-b border-slate-800">
+    <div class="p-4 border-b border-slate-800 shrink-0">
         <h1 class="text-xl font-bold text-indigo-400 flex items-center gap-2">🤝 Agent Arena</h1>
     </div>
     
-    <div class="flex-1 flex flex-col p-4 gap-6 overflow-hidden">
-        <!-- Artifacts -->
-        <section class="flex flex-col min-h-0 flex-1">
+    <!-- 3 Equal Sections -->
+    <div class="flex-1 flex flex-col overflow-hidden">
+
+        <!-- Part 1: Artifacts -->
+        <section class="flex-1 min-h-0 flex flex-col p-4 border-b border-slate-800/50">
             <h3 class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3 flex justify-between items-center shrink-0">
                 <span>📋 Artifacts</span>
                 <div class="flex gap-2">
@@ -33,92 +46,97 @@
                     <button onclick="clearBlackboard()" class="hover:text-slate-300" title="Clear Sidebar">🗑️</button>
                 </div>
             </h3>
-            <div id="blackboard" class="flex flex-col gap-2 overflow-y-auto pr-1">
+            <div id="blackboard" class="flex-1 overflow-y-auto pr-1 flex flex-col gap-2">
                 <div class="text-xs text-slate-600 italic">No artifacts yet.</div>
             </div>
         </section>
 
-        <!-- Pipeline -->
-        <section class="shrink-0">
-            <h3 class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3">🛠️ Pipeline Status</h3>
-            <div id="pipeline-status" class="flex flex-col gap-1 text-[11px]">
-                <div class="step p-2 rounded border border-slate-800 text-slate-500" id="step-HYDRATION">1. Hydration</div>
-                <div class="step p-2 rounded border border-slate-800 text-slate-500" id="step-RESEARCH">2. Research</div>
-                <div class="step p-2 rounded border border-slate-800 text-slate-500" id="step-DESIGN">3. Design</div>
-                <div class="step p-2 rounded border border-slate-800 text-slate-500" id="step-IMPLEMENT">4. Coding</div>
-                <div class="step p-2 rounded border border-slate-800 text-slate-500" id="step-VERIFY">5. Review</div>
+        <!-- Part 2: Pipeline Status -->
+        <section class="flex-1 min-h-0 flex flex-col p-4 border-b border-slate-800/50">
+            <h3 class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3 shrink-0">🛠️ Pipeline Status</h3>
+            <div id="pipeline-status" class="flex-1 overflow-y-auto pr-1 flex flex-col gap-1 text-[11px]">
+                <div class="step p-2 rounded border border-slate-800 text-slate-500" id="step-ROUTING">1. Routing (PydanticAI)</div>
+                <div class="step p-2 rounded border border-slate-800 text-slate-500" id="step-SCOUTING">2. Scouting (CrewAI)</div>
+                <div class="step p-2 rounded border border-slate-800 text-slate-500" id="step-JUDGING">3. Judging (AutoGen)</div>
+                <div class="step p-2 rounded border border-slate-800 text-slate-500" id="step-IMPLEMENTING">4. Implementation (Kimi)</div>
+                <div class="step p-2 rounded border border-slate-800 text-slate-500" id="step-VERIFYING">5. Verification</div>
             </div>
         </section>
-    </div>
 
-    <!-- Mini Log -->
-    <div class="p-4 bg-slate-950/50 border-t border-slate-800 h-40 overflow-y-auto font-mono text-[9px] text-slate-600" id="activity-log">
-        <div>> System standby.</div>
+        <!-- Part 3: Activity Console -->
+        <section class="flex-1 min-h-0 flex flex-col p-4 bg-slate-950/20" id="activity-wrapper">
+            <h3 class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3 shrink-0">🚀 Activity Console</h3>
+            <div id="activity-log" class="flex-1 overflow-y-auto font-mono text-[10px] text-slate-500 flex flex-col gap-1">
+                <div>> System standby.</div>
+            </div>
+        </section>
+
     </div>
   </aside>
 
-  <!-- Main Content: Chat & Preview -->
-  <main class="flex-1 flex flex-col relative">
+    <!-- Main Content: Chat & Preview -->
+    <main class="flex-1 flex overflow-hidden relative">
 
-    <!-- Top Bar -->
-    <header class="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/20 backdrop-blur-md z-10">
-        <div class="flex gap-3">
-            <select id="modelSelect" class="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-indigo-300 focus:ring-1 focus:ring-indigo-500 outline-none"></select>
-            <select id="modeSelect" class="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-emerald-400 font-bold outline-none">
-                <option value="fast">⚡ FAST</option>
-                <option value="medium" selected>⚖️ MEDIUM</option>
-                <option value="complex">🧠 COMPLEX</option>
-            </select>
-        </div>
-        <div id="preview-filename-badge" class="text-xs font-mono text-slate-400 bg-slate-800 px-3 py-1 rounded-full hidden"></div>
-        <div class="flex gap-2">
-            <button id="run-btn" onclick="runPythonFile()" class="text-[10px] bg-indigo-600 hover:bg-indigo-500 px-4 py-1.5 rounded font-bold transition hidden">Run Script</button>
-            <button onclick="togglePreview()" class="text-[10px] bg-slate-800 hover:bg-slate-700 px-4 py-1.5 rounded font-bold transition">Toggle Preview</button>
-        </div>
-    </header>
+        <!-- Chat Area (Scrollable) -->
+        <div id="chat-wrapper" class="flex-1 flex flex-col min-w-0 transition-all duration-500 ease-in-out">
+            <!-- Top Bar (Inside Wrapper) -->
+            <header class="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/20 backdrop-blur-md z-10">
+                <div class="flex gap-3">
+                    <select id="modelSelect" class="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-indigo-300 focus:ring-1 focus:ring-indigo-500 outline-none"></select>
+                    <select id="modeSelect" class="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-emerald-400 font-bold outline-none">
+                        <option value="fast">⚡ FAST</option>
+                        <option value="medium" selected>⚖️ MEDIUM</option>
+                        <option value="complex">🧠 COMPLEX</option>
+                    </select>
+                </div>
+                <div id="preview-filename-badge" class="text-xs font-mono text-slate-400 bg-slate-800 px-3 py-1 rounded-full hidden"></div>
+                <div class="flex gap-2">
+                    <button id="run-btn" onclick="runPythonFile()" class="text-[10px] bg-indigo-600 hover:bg-indigo-500 px-4 py-1.5 rounded font-bold transition hidden">Run Script</button>
+                    <button onclick="togglePreview()" class="text-[10px] bg-slate-800 hover:bg-slate-700 px-4 py-1.5 rounded font-bold transition">Toggle Preview</button>
+                </div>
+            </header>
 
-    <!-- Chat Area -->
-    <div class="flex-1 overflow-hidden flex relative">
-        <div id="chat-container" class="flex-1 overflow-y-auto p-6 flex flex-col gap-6">
-            <!-- Messages will appear here -->
+            <div id="chat-container" class="flex-1 overflow-y-auto p-6 flex flex-col gap-6">
+                <!-- Messages will appear here -->
+            </div>
+
+            <!-- Input Bar (Inside Wrapper) -->
+            <footer class="p-6 bg-slate-950">
+                <div class="max-w-4xl mx-auto relative">
+                    <textarea id="masterPrompt" placeholder="Ask a question or describe a task..." rows="1" class="w-full bg-slate-900 border border-slate-700 rounded-2xl px-5 py-4 pr-32 text-sm text-slate-100 focus:ring-2 focus:ring-indigo-600 outline-none resize-none shadow-2xl transition-all" oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'"></textarea>
+                    <div class="absolute right-3 bottom-3 flex gap-2">
+                        <button onclick="sendInterrupt()" id="btn-nudge" class="p-2 bg-amber-900/50 hover:bg-amber-800 rounded-xl text-amber-200 hidden transition" title="Nudge Agent / Correct Path">Nudge 🎯</button>
+                        <button onclick="stopWorkflow()" id="btn-stop" class="p-2 bg-red-900/50 hover:bg-red-800 rounded-xl text-red-200 hidden transition"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12"></rect></svg></button>
+                        <button onclick="startTeamWorkflow()" id="btn-execute" class="p-2 bg-indigo-600 hover:bg-indigo-500 rounded-xl text-white transition"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg></button>
+                    </div>
+                </div>
+                <div class="max-w-4xl mx-auto flex gap-4 mt-3">
+                    <button onclick="setPrompt('Build a project named \'mini-bot\'. 1. Create a folder \'mini-bot\'. 2. Create a \'bot.py\' inside it that prints \'Hello\' every 5s.')" class="text-[9px] text-slate-500 hover:text-slate-300">🤖 Mini-Bot</button>
+                    <button onclick="setPrompt('Search the web for latest AI news and save to news.md')" class="text-[9px] text-slate-500 hover:text-slate-300">🌍 AI News</button>
+                    <button onclick="setPrompt('Create an index.html with a blue title.')" class="text-[9px] text-slate-500 hover:text-slate-300">📄 Simple HTML</button>
+                    <button onclick="clearHistory()" class="text-[9px] text-red-900/50 hover:text-red-400 ml-auto">🗑️ Clear Chat History</button>
+                </div>
+            </footer>
         </div>
 
-        <!-- Floating Preview (Resizable) -->
-        <div id="preview-panel" class="absolute right-0 top-0 bottom-0 w-1/2 bg-slate-950 border-l border-slate-800 shadow-2xl transition-transform translate-x-full z-20 flex flex-col">
+        <!-- Floating Preview (Side-by-Side Mode) -->
+        <div id="preview-panel" class="w-0 bg-slate-950 border-l border-slate-800 shadow-2xl transition-all duration-500 ease-in-out z-20 flex flex-col overflow-hidden">
             <div id="preview-container" class="flex-1 relative overflow-auto">
                 <iframe id="preview-frame" class="w-full h-full border-none hidden bg-white"></iframe>
                 <img id="preview-image" class="max-w-full max-h-full m-auto hidden" src="" />
                 <pre id="preview-text" class="p-6 text-sm text-slate-300 font-mono whitespace-pre-wrap hidden"></pre>
-                <div id="preview-empty" class="absolute inset-0 flex items-center justify-center text-slate-700 italic text-sm">Preview area</div>
+                <div id="preview-empty" class="absolute inset-0 flex items-center justify-center text-slate-700 italic text-sm uppercase tracking-widest font-bold opacity-20">Preview area</div>
             </div>
         </div>
-    </div>
-
-    <!-- Input Bar -->
-    <footer class="p-6 bg-slate-950">
-        <div class="max-w-4xl mx-auto relative">
-            <textarea id="masterPrompt" placeholder="Ask a question or describe a task..." rows="1" class="w-full bg-slate-900 border border-slate-700 rounded-2xl px-5 py-4 pr-32 text-sm text-slate-100 focus:ring-2 focus:ring-indigo-600 outline-none resize-none shadow-2xl transition-all" oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'"></textarea>
-            <div class="absolute right-3 bottom-3 flex gap-2">
-                <button onclick="sendInterrupt()" id="btn-nudge" class="p-2 bg-amber-900/50 hover:bg-amber-800 rounded-xl text-amber-200 hidden transition" title="Nudge Agent / Correct Path">Nudge 🎯</button>
-                <button onclick="stopWorkflow()" id="btn-stop" class="p-2 bg-red-900/50 hover:bg-red-800 rounded-xl text-red-200 hidden transition"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12"></rect></svg></button>
-                <button onclick="startTeamWorkflow()" id="btn-execute" class="p-2 bg-indigo-600 hover:bg-indigo-500 rounded-xl text-white transition"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg></button>
-            </div>
-        </div>
-        <div class="max-w-4xl mx-auto flex gap-4 mt-3">
-            <button onclick="setPrompt('Build a project named \'mini-bot\'. 1. Create a folder \'mini-bot\'. 2. Create a \'bot.py\' inside it that prints \'Hello\' every 5s.')" class="text-[9px] text-slate-500 hover:text-slate-300">🤖 Mini-Bot</button>
-            <button onclick="setPrompt('Search the web for latest AI news and save to news.md')" class="text-[9px] text-slate-500 hover:text-slate-300">🌍 AI News</button>
-            <button onclick="setPrompt('Create an index.html with a blue title.')" class="text-[9px] text-slate-500 hover:text-slate-300">📄 Simple HTML</button>
-            <button onclick="clearHistory()" class="text-[9px] text-red-900/50 hover:text-red-400 ml-auto">🗑️ Clear Chat History</button>
-        </div>
-    </footer>
-  </main>
+    </main>
 
   <script>
     const agents = {
-      crewai: { name: 'CrewAI Specialist', icon: '🕵️', color: 'emerald' },
-      langgraph: { name: 'LangGraph Designer', icon: '📐', color: 'blue' },
-      kimi: { name: 'Kimi Code CLI', icon: '💻', color: 'indigo' },
-      autogen: { name: 'AutoGen Reviewer', icon: '⚖️', color: 'purple' },
+      pydantic_ai: { name: 'PydanticAI Router', icon: '🚦', color: 'blue' },
+      crewai: { name: 'CrewAI Specialists', icon: '🕵️', color: 'emerald' },
+      autogen: { name: 'AutoGen Judge', icon: '⚖️', color: 'purple' },
+      kimi: { name: 'Kimi Implementation', icon: '💻', color: 'indigo' },
+      verifier: { name: 'Verifier', icon: '✅', color: 'rose' },
       system: { name: 'System', icon: '⚙️', color: 'slate' }
     };
 
@@ -200,8 +218,16 @@
 
     function togglePreview() {
         const panel = document.getElementById('preview-panel');
+        const chatWrapper = document.getElementById('chat-wrapper');
         isPreviewOpen = !isPreviewOpen;
-        panel.style.transform = isPreviewOpen ? 'translateX(0)' : 'translateX(100%)';
+
+        if (isPreviewOpen) {
+            panel.style.width = '50%';
+            // chatWrapper.style.maxWidth = '50%';
+        } else {
+            panel.style.width = '0';
+            // chatWrapper.style.maxWidth = '100%';
+        }
     }
 
     function setPrompt(text) {
@@ -219,31 +245,60 @@
 
     function createMessageBubble(role, content = "") {
         const container = document.getElementById('chat-container');
-        const bubble = document.createElement('div');
-        // Standardize roles for internal consistency
+        const wrapper = document.createElement('div');
         const isUser = role === 'user';
-        bubble.className = `chat-bubble p-4 rounded-2xl shadow-lg text-sm ${isUser ? 'self-end bg-indigo-600 text-white rounded-tr-none' : 'self-start bg-slate-900 border border-slate-800 text-slate-100 rounded-tl-none'}`;
+        const isAI = role === 'ai' || role === 'assistant';
+        wrapper.className = `flex ${isUser ? 'justify-end' : 'justify-start'} w-full`;
 
-        if (role === 'ai') {
-            bubble.innerHTML = `<div class="font-bold text-[10px] text-indigo-400 uppercase tracking-widest mb-2 flex items-center justify-between">
-                <span id="current-agent-tag">Team Thinking...</span>
-                <span id="current-metrics" class="text-slate-500 font-mono"></span>
+        const bubble = document.createElement('div');
+        bubble.className = `chat-bubble ${isUser ? 'user-bubble-inner' : 'ai-bubble-inner'} text-sm`;
+
+        if (isAI) {
+            bubble.innerHTML = `<div class="font-bold text-[10px] text-indigo-400 uppercase tracking-widest mb-3 flex items-center justify-between">
+                <span class="agent-tag">Team Ready</span>
+                <span class="metrics-tag text-slate-500 font-mono"></span>
             </div>
-            <div id="ai-content" class="whitespace-pre-wrap">${content}</div>
-            <div id="ai-stream" class="agent-stream-mini hidden"></div>`;
+
+            <!-- Live Activity Card -->
+            <div class="live-activity-card agent-status-card hidden">
+                <div class="flex items-center gap-3">
+                    <div class="w-2 h-2 bg-indigo-500 rounded-full animate-ping"></div>
+                    <span class="status-msg text-xs font-bold text-indigo-400">Agent is working...</span>
+                </div>
+                <span class="status-step text-[10px] text-indigo-300/50 font-mono"></span>
+            </div>
+
+            <div class="ai-content markdown-body text-slate-200 leading-relaxed space-y-2"></div>
+
+            <div class="flex gap-3 mt-4">
+                <button onclick="toggleLogs(this)" class="log-toggle">
+                    <span>🔍 View Technical Logs</span>
+                </button>
+            </div>
+            <div class="ai-stream agent-stream-mini font-mono hidden"></div>`;
         } else {
-            bubble.innerHTML = `<div id="ai-content" class="whitespace-pre-wrap">${content}</div>`;
+            bubble.innerHTML = `<div class="ai-content text-white">${content}</div>`;
         }
 
-        container.appendChild(bubble);
+        wrapper.appendChild(bubble);
+        container.appendChild(wrapper);
         container.scrollTop = container.scrollHeight;
         return bubble;
+    }
+
+    function toggleLogs(btn) {
+        const streamDiv = btn.closest('.chat-bubble').querySelector('.ai-stream');
+        if (streamDiv) {
+            streamDiv.classList.toggle('hidden');
+            btn.querySelector('span').innerText = streamDiv.classList.contains('hidden') ? '🔍 View Technical Logs' : '📖 Hide Technical Logs';
+        }
     }
 
     async function startTeamWorkflow() {
       const prompt = document.getElementById('masterPrompt').value;
       const model = document.getElementById('modelSelect').value;
       const mode = document.getElementById('modeSelect').value;
+      const chatContainer = document.getElementById('chat-container');
       if (!prompt) return;
 
       createMessageBubble('user', prompt);
@@ -251,10 +306,13 @@
       document.getElementById('masterPrompt').style.height = 'auto';
 
       const aiBubble = createMessageBubble('ai');
-      const aiContent = aiBubble.querySelector('#ai-content');
-      const aiStream = aiBubble.querySelector('#ai-stream');
-      const agentTag = aiBubble.querySelector('#current-agent-tag');
-      const metricsTag = aiBubble.querySelector('#current-metrics');
+      const aiContent = aiBubble.querySelector('.ai-content');
+      const aiStream = aiBubble.querySelector('.ai-stream');
+      const agentTag = aiBubble.querySelector('.agent-tag');
+      const metricsTag = aiBubble.querySelector('.metrics-tag');
+      const statusCard = aiBubble.querySelector('.live-activity-card');
+      const statusMsg = aiBubble.querySelector('.status-msg');
+      const statusStep = aiBubble.querySelector('.status-step');
 
       document.getElementById('btn-execute').classList.add('hidden');
       document.getElementById('btn-stop').classList.remove('hidden');
@@ -270,20 +328,35 @@
           const reader = response.body.getReader();
           const decoder = new TextDecoder();
           let fullResponse = "";
+          let buffer = "";
 
           while (true) {
             const { done, value } = await reader.read();
             if (done) break;
 
-            const chunks = decoder.decode(value).split('\n\n');
-            for (const line of chunks) {
-              if (!line.startsWith('data: ')) continue;
-              const msg = JSON.parse(line.replace('data: ', ''));
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n\n');
+            buffer = lines.pop(); // Keep the partial line in the buffer
+
+            for (const line of lines) {
+              if (!line.trim().startsWith('data: ')) continue;
+
+              let msg;
+              try {
+                  msg = JSON.parse(line.replace('data: ', '').trim());
+              } catch (parseError) {
+                  console.error("JSON Parse Error:", parseError, "Line:", line);
+                  continue;
+              }
 
               if (msg.type === 'status') {
                 const agent = agents[msg.agent];
-                agentTag.innerText = `${agent.icon} ${agent.name} is ${msg.mode}...`;
+                agentTag.innerText = `${agent.icon} ${agent.name}`;
                 logActivity(`${agent.name}: ${msg.state}`, agent.color);
+
+                statusCard.classList.remove('hidden');
+                statusMsg.innerText = `${msg.mode || 'PROCESSING'}...`;
+                statusStep.innerText = msg.step || msg.state;
 
                 // Update Pipeline
                 document.querySelectorAll('.step').forEach(s => s.classList.remove('bg-indigo-900/50', 'border-indigo-500', 'text-indigo-200', 'font-bold'));
@@ -292,22 +365,72 @@
               }
 
               if (msg.type === 'token') {
-                aiStream.classList.remove('hidden');
                 aiStream.innerText += msg.chunk;
                 aiStream.scrollTop = aiStream.scrollHeight;
                 metricsTag.innerText = `${msg.elapsed}s | ${msg.tokens} tokens`;
+
+                // Real-time Clean Text Preview (Markdown)
+                if (msg.mode === 'THINKING') {
+                    if (!msg.chunk.includes('```') && !msg.chunk.includes('{')) {
+                        // Aggressively strip technical noise during live stream
+                        let streamText = aiStream.innerText
+                            .replace(/```tool[\s\S]*?```/g, '')
+                            .replace(/\{"tool":[\s\S]*?\}/g, '')
+                            .replace(/\\n/g, '\n');
+
+                        aiContent.innerHTML = marked.parse(streamText);
+                        chatContainer.scrollTop = chatContainer.scrollHeight;
+                    }
+                }
               }
 
               if (msg.type === 'done') {
-                const finishedText = `\n\n--- ${agents[msg.agent].name} FINISHED ---\n\n`;
+                const finishedText = `\n\n--- ${agents[msg.agent].name} COMPLETED ---\n\n`;
                 aiStream.innerText += finishedText;
                 fullResponse += msg.content + "\n";
                 addArtifact(msg.agent, msg.agent.toUpperCase(), msg.content);
+
+                // Hide status card when done
+                statusCard.classList.add('hidden');
+
+                // Finalize the section for this agent with very clean formatting
+                aiContent.innerHTML = "";
+
+                const phaseDiv = document.createElement('div');
+                phaseDiv.className = "mb-8 last:mb-0 pb-6 border-b border-slate-800/50 last:border-0 group";
+
+                // Aggressive cleaning for the UI summary
+                let cleanText = msg.content.replace(/\\n/g, '\n');
+                cleanText = cleanText.replace(/```tool[\s\S]*?```/g, '');
+                cleanText = cleanText.replace(/\{"tool":\s*".*?"[\s\S]*?\}/g, '');
+                cleanText = cleanText.replace(/\[TOOL RESULT\]:[\s\S]*?\n/g, '');
+                cleanText = cleanText.replace(/\[TOOL ERROR\]:[\s\S]*?\n/g, '');
+
+                const writeMatch = msg.content.match(/Wrote ([\w\.\-\/]+)/);
+                let footer = "";
+                if (writeMatch) {
+                    footer = `<div class="artifact-summary mt-4" onclick="renderOutput('${writeMatch[1]}')">
+                        <span class="text-indigo-400">📄</span> <span>File Output: <strong>${writeMatch[1]}</strong></span>
+                    </div>`;
+                }
+
+                phaseDiv.innerHTML = `
+                    <div class="flex items-center gap-2 mb-4">
+                        <span class="text-[10px] font-bold text-indigo-400 opacity-60 uppercase tracking-widest">${agents[msg.agent].name} Output</span>
+                        <div class="h-[1px] flex-1 bg-slate-800"></div>
+                    </div>
+                    <div class="markdown-body text-slate-300 text-sm leading-relaxed">${marked.parse(cleanText.trim())}</div>
+                    ${footer}
+                `;
+                aiContent.appendChild(phaseDiv);
+
+                if (msg.content.includes("Wrote")) scanWorkspace();
               }
             }
           }
 
-          aiContent.innerText = "Task completed. Check artifacts or preview for details.";
+          aiBubble.querySelector('.log-toggle').classList.add('hidden'); // Hide log toggle if it was empty? No, let's keep it.
+          // aiContent.innerText = "Task completed. Check artifacts or preview for details.";
           chatHistory.push({ role: 'user', content: prompt });
           chatHistory.push({ role: 'assistant', content: fullResponse });
           saveState();

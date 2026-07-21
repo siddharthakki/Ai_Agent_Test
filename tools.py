@@ -7,17 +7,21 @@ import asyncio
 import base64
 import psutil
 from datetime import datetime
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Union
 from PIL import Image
+from pathlib import Path
 
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-BASE_WORKSPACE = os.path.join(SCRIPT_DIR, "workspace")
-os.makedirs(BASE_WORKSPACE, exist_ok=True)
+# Authoritative resolved path for the workspace
+SCRIPT_DIR = Path(__file__).parent.resolve()
+BASE_WORKSPACE = (SCRIPT_DIR / "workspace").resolve()
+BASE_WORKSPACE.mkdir(exist_ok=True)
+
 COMFYUI_URL = "http://127.0.0.1:8188"
 
 class ToolRegistry:
     def __init__(self):
-        self.tools = {
+        # Master list of all available functions
+        self._all_tools = {
             "get_system_time": self._get_system_time,
             "list_files": self._list_files,
             "read_file": self._read_file,
@@ -25,10 +29,8 @@ class ToolRegistry:
             "execute_command": self._execute_command,
             "search_workspace": self._search_workspace,
             "make_directory": self._make_directory,
-            "delete_item": self._delete_item,
             "get_file_info": self._get_file_info,
             "fetch_url": self._fetch_url,
-            "pip_install": self._pip_install,
             "web_search": self._web_search,
             "read_pdf": self._read_pdf,
             "image_transform": self._image_transform,
@@ -36,6 +38,46 @@ class ToolRegistry:
             "comfyui_generate": self._comfyui_generate,
             "vision_analyze": self._vision_analyze
         }
+        
+        # Role-based tool access definitions
+        self.role_permissions = {
+            "scout": ["read_file", "list_files", "search_workspace", "get_file_info", "get_system_time", "check_resources"],
+            "judge": ["get_system_time"], 
+            "implementer": ["write_file", "make_directory", "execute_command", "read_file", "list_files", "get_system_time"],
+            "verifier": ["read_file", "list_files", "execute_command", "get_system_time"],
+            "system": ["get_system_time", "list_files", "read_file", "write_file", "execute_command", "search_workspace", "make_directory", "get_file_info", "fetch_url", "web_search", "read_pdf", "image_transform", "check_resources", "comfyui_generate", "vision_analyze"]
+        }
+
+    def _resolve_path(self, path_str: str) -> Path:
+        if not path_str: return BASE_WORKSPACE
+        
+        p = Path(path_str)
+        if p.is_absolute():
+            raise PermissionError("Absolute paths are forbidden.")
+            
+        try:
+            full_path = (BASE_WORKSPACE / p).resolve()
+        except Exception:
+            raise PermissionError("Invalid path components.")
+
+        if not full_path.is_relative_to(BASE_WORKSPACE):
+            raise PermissionError("Access Denied: Path escape detected.")
+            
+        return full_path
+
+    async def _fetch_url(self, url: str) -> str:
+        return "SYSTEM_ERROR: fetch_url is restricted in this environment."
+
+    async def _web_search(self, query: str) -> str:
+        try:
+            async with httpx.AsyncClient(follow_redirects=True) as client:
+                url = f"https://duckduckgo.com/html/?q={query}"
+                res = await client.get(url, headers={"User-Agent": "Mozilla/5.0"})
+                import re
+                text = re.sub(r'<[^>]+>', '', res.text)
+                text = " ".join(text.split())
+                return text[:2000]
+        except Exception as e: return f"Search failed: {e}"
 
     def _get_free_vram(self) -> int:
         try:
@@ -43,33 +85,8 @@ class ToolRegistry:
             return int(res)
         except: return 0
 
-    async def _fetch_url(self, url: str) -> str:
-        try:
-            async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
-                res = await client.get(url)
-                return res.text[:5000]
-        except Exception as e:
-            return f"Network Error: {e}"
-
-    async def _comfyui_generate(self, prompt: str, filename: str = "gen_image.png") -> str:
-        try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                queue_res = await client.get(f"{COMFYUI_URL}/queue")
-                q = queue_res.json()
-                if len(q.get("queue_running", [])) > 0 or len(q.get("queue_pending", [])) > 0:
-                    return "ERROR: ComfyUI busy."
-                if self._get_free_vram() < 4000:
-                    return "ERROR: Low VRAM."
-                workflow = {
-                    "prompt": {
-                        "3": {"inputs": {"text": prompt}, "class_type": "CLIPTextEncode"},
-                        "5": {"inputs": {"width": 1024, "height": 1024, "batch_size": 1}, "class_type": "EmptyLatentImage"},
-                        "6": {"inputs": {"ckpt_name": "sd_xl_base_1.0.safetensors"}, "class_type": "CheckpointLoaderSimple"}
-                    }
-                }
-                await client.post(f"{COMFYUI_URL}/prompt", json=workflow)
-                return f"SUCCESS: Sent to ComfyUI."
-        except Exception as e: return f"ComfyUI Error: {e}"
+    async def _comfyui_generate(self, prompt: str) -> str:
+        return "SYSTEM_ERROR: ComfyUI generate is disabled in this hardened branch."
 
     async def _vision_analyze(self, image_path: str, query: str = "Analyze", model: str = "llava") -> str:
         try:
@@ -86,24 +103,6 @@ class ToolRegistry:
     def _check_resources(self) -> str:
         return json.dumps({"cpu": f"{psutil.cpu_percent()}%", "vram": f"{self._get_free_vram()}MB"})
 
-    def _resolve_path(self, path: str) -> str:
-        if not path: return BASE_WORKSPACE
-        # Ensure path is always a string and normalized
-        safe_path = os.path.normpath(str(path)).lstrip(os.sep).lstrip("..").lstrip(".")
-        return os.path.join(BASE_WORKSPACE, safe_path)
-
-    async def _web_search(self, query: str) -> str:
-        try:
-            async with httpx.AsyncClient(follow_redirects=True) as client:
-                url = f"https://duckduckgo.com/html/?q={query}"
-                res = await client.get(url, headers={"User-Agent": "Mozilla/5.0"})
-                # Basic HTML stripping to save context tokens
-                import re
-                text = re.sub(r'<[^>]+>', '', res.text)
-                text = " ".join(text.split())
-                return text[:2000]
-        except Exception as e: return f"Search failed: {e}"
-
     def _read_pdf(self, path: str) -> str:
         try:
             import fitz
@@ -116,89 +115,115 @@ class ToolRegistry:
             full_path = self._resolve_path(path)
             with Image.open(full_path) as img:
                 if action == "grayscale": img = img.convert("L")
-                img.save(full_path.replace(".", "_mod."))
-                return "Saved."
+                save_path = full_path.parent / (full_path.stem + "_mod" + full_path.suffix)
+                img.save(save_path)
+                return f"Saved to {save_path.name}"
         except Exception as e: return str(e)
 
-    def _pip_install(self, package: str) -> str:
+    async def _read_file(self, path: str) -> str:
         try:
-            subprocess.run([os.path.join(os.getcwd(), "venv", "Scripts", "pip.exe"), "install", package], check=True)
-            return "Installed."
+            p = self._resolve_path(path)
+            if not p.is_file(): return "SYSTEM_ERROR: File not found."
+            return p.read_text(encoding='utf-8')
         except Exception as e: return str(e)
 
-    def _read_file(self, path: str) -> str:
-        try:
-            with open(self._resolve_path(path), 'r', encoding='utf-8') as f: return f.read()
-        except Exception as e: return str(e)
-
-    def _write_file(self, path: str, content: str) -> str:
+    async def _write_file(self, path: str, content: str) -> str:
         try:
             full_path = self._resolve_path(path)
-            os.makedirs(os.path.dirname(full_path), exist_ok=True)
-            with open(full_path, 'w', encoding='utf-8') as f: f.write(content)
+            full_path.parent.mkdir(parents=True, exist_ok=True)
+            full_path.write_text(content, encoding='utf-8')
             return f"Wrote {path}"
         except Exception as e: return str(e)
 
-    def _delete_item(self, path: str) -> str:
+    async def _make_directory(self, path: str) -> str:
         try:
-            full_path = self._resolve_path(path)
-            if os.path.isdir(full_path): shutil.rmtree(full_path)
-            else: os.remove(full_path)
-            return "Deleted."
-        except Exception as e: return str(e)
+            self._resolve_path(path).mkdir(parents=True, exist_ok=True)
+            return f"Created directory: {path}"
+        except Exception as e: return f"SYSTEM_ERROR: {str(e)}"
+
+    async def _execute_command(self, command: str) -> Union[str, Dict[str, Any]]:
+        allowed_executables = {
+            "python": [os.path.join(os.getcwd(), "venv", "Scripts", "python.exe")],
+            "dir": ["cmd.exe", "/c", "dir"],
+            "echo": ["cmd.exe", "/c", "echo"],
+            "type": ["cmd.exe", "/c", "type"]
+        }
+        
+        try:
+            import shlex
+            args = shlex.split(command)
+            if not args: return "SYSTEM_ERROR: Empty command"
+            
+            executable_key = args[0].lower()
+            if executable_key not in allowed_executables:
+                return f"SYSTEM_ERROR: Command '{executable_key}' is not in the allowlist."
+
+            base_cmd = allowed_executables[executable_key]
+            final_args = base_cmd + args[1:]
+            
+            danger_chars = [";", "&", "|", ">", "<", "`", "$", "(", ")"]
+            if any(c in command for c in danger_chars):
+                 return "SYSTEM_ERROR: Shell metacharacters are forbidden."
+
+            proc = await asyncio.create_subprocess_exec(
+                *final_args,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=str(BASE_WORKSPACE)
+            )
+            try:
+                stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30.0)
+                return {
+                    "stdout": stdout.decode(),
+                    "stderr": stderr.decode(),
+                    "exit_code": proc.returncode
+                }
+            except asyncio.TimeoutError:
+                proc.kill()
+                return "SYSTEM_ERROR: Execution timed out (30s)"
+        except Exception as e:
+            return f"SYSTEM_ERROR: {str(e)}"
 
     def _get_file_info(self, path: str) -> str:
         try:
-            stat = os.stat(self._resolve_path(path))
-            return json.dumps({"size": stat.st_size})
-        except Exception as e: return str(e)
-
-    def _execute_command(self, command: str) -> str:
-        try:
-            # Security: Basic check to prevent escaping workspace context
-            if ".." in command:
-                return "Error: Command cannot escape workspace directory."
-
-            result = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=60, cwd=BASE_WORKSPACE)
-            return f"EXIT_CODE: {result.returncode}\nOUT: {result.stdout}\nERR: {result.stderr}"
-        except Exception as e: return str(e)
-
-    def _make_directory(self, path: str) -> str:
-        try:
-            os.makedirs(self._resolve_path(path), exist_ok=True)
-            return "Created."
+            stat = self._resolve_path(path).stat()
+            return json.dumps({"size": stat.st_size, "modified": stat.st_mtime})
         except Exception as e: return str(e)
 
     def _search_workspace(self, query: str) -> str:
         res = []
-        for root, _, files in os.walk(BASE_WORKSPACE):
-            for f in files:
-                if query in f: res.append(os.path.relpath(os.path.join(root, f), BASE_WORKSPACE))
+        for p in BASE_WORKSPACE.rglob("*"):
+            if p.is_file() and query in p.name:
+                res.append(str(p.relative_to(BASE_WORKSPACE)))
         return json.dumps(res)
 
     def _get_system_time(self) -> str:
         return datetime.now().strftime("%H:%M:%S")
 
     def _list_files(self, path: str = ".") -> List[str]:
-        try: return os.listdir(self._resolve_path(path))
+        try:
+            root = self._resolve_path(path)
+            return [str(p.name) for p in root.iterdir()]
         except: return []
 
-    async def execute_tool(self, tool_name: str, args: Dict[str, Any] = None) -> str:
+    async def execute_tool(self, tool_name: str, args: Dict[str, Any], role: str = "scout") -> str:
         if args is None: args = {}
-        if tool_name in self.tools:
+        
+        allowed_tools = self.role_permissions.get(role, [])
+        if tool_name not in allowed_tools:
+            return f"SYSTEM_ERROR: Role '{role}' does not have permission to use tool '{tool_name}'."
+            
+        if tool_name in self._all_tools:
             try:
                 import inspect
-                func = self.tools[tool_name]
-
-                # Dynamic Type Casting for AI "Fuzziness"
+                func = self._all_tools[tool_name]
+                
                 sig = inspect.signature(func)
                 bound_args = {}
                 for param_name, param in sig.parameters.items():
                     if param_name in args:
                         val = args[param_name]
-                        # Cast to expected type if necessary
-                        if param.annotation == str:
-                            bound_args[param_name] = str(val)
+                        if param.annotation == str: bound_args[param_name] = str(val)
                         elif param.annotation == int:
                             try: bound_args[param_name] = int(val)
                             except: bound_args[param_name] = val
@@ -208,10 +233,13 @@ class ToolRegistry:
                         bound_args[param_name] = param.default
 
                 if inspect.iscoroutinefunction(func):
-                    return await func(**bound_args)
-                return func(**bound_args)
+                    result = await func(**bound_args)
+                else:
+                    result = func(**bound_args)
+                
+                return json.dumps(result) if not isinstance(result, (str, dict)) else result
             except Exception as e:
-                return f"SYSTEM_ERROR: Tool '{tool_name}' failed: {str(e)}"
+                return f"SYSTEM_ERROR: {str(e)}"
         return f"SYSTEM_ERROR: Tool '{tool_name}' not found"
 
 registry = ToolRegistry()
