@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+httpx
+pydantic
+psutil
+pillow
+json-repair
+beautifulsoup4
+requests
+python-multipart
