@@ -1,0 +1,35 @@
+name: BigModel Desktop Windows
+on:
+  push:
+    paths: ['bigmodel-desktop/**', '.github/workflows/bigmodel-windows.yml']
+  pull_request:
+    paths: ['bigmodel-desktop/**', '.github/workflows/bigmodel-windows.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: bigmodel-desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m unittest discover -s tests -v
+      - run: python -m pip install pyinstaller==6.16.0
+      - run: python -m PyInstaller --noconfirm --clean --windowed --onedir --name BigModelDesktop launch.py
+      - name: Verify packaged application starts
+        shell: pwsh
+        run: |
+          $resultPath = Join-Path $env:RUNNER_TEMP 'bigmodel-smoke.json'
+          $app = Start-Process -FilePath '.\dist\BigModelDesktop\BigModelDesktop.exe' -ArgumentList @('--smoke-test', $resultPath) -WindowStyle Hidden -Wait -PassThru
+          if ($app.ExitCode -ne 0) { throw 'Packaged application failed to start' }
+          $result = Get-Content -LiteralPath $resultPath | ConvertFrom-Json
+          if (-not $result.ok -or $result.tabs -ne 4) { throw 'Packaged UI smoke check failed' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BigModelDesktop-Windows-x64
+          path: bigmodel-desktop/dist/BigModelDesktop/

@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bigmodel-desktop"
+version = "0.1.0"
+description = "Discover GGUF models and benchmark GPU/RAM placement on a local PC"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.gui-scripts]
+bigmodel = "bigmodel.app:main"
+
+[tool.setuptools.packages.find]
+include = ["bigmodel*"]
