@@ -2,13 +2,14 @@ import hashlib
 import io
 from pathlib import Path
 import struct
+import subprocess
 import tempfile
 import threading
 import unittest
 from unittest.mock import patch
 
 from bigmodel.core import (GIB, Hardware, HuggingFace, download_variant, fit_label,
-                           gguf_metadata, model_files, safe_destination, verify_file)
+                           gguf_metadata, model_files, safe_destination, verify_file, run)
 from bigmodel.engine import candidates, command
 
 
@@ -27,6 +28,11 @@ def fixture(path):
 
 
 class CoreTests(unittest.TestCase):
+    def test_windows_integrity_failure_is_actionable(self):
+        with patch('bigmodel.core.subprocess.run', side_effect=subprocess.CalledProcessError(0xc0e90002, ['server'])):
+            with self.assertRaisesRegex(RuntimeError, 'Windows blocked'):
+                run(['server'])
+
     def test_gguf_reads_architecture_without_loading_token_array(self):
         with tempfile.TemporaryDirectory() as d:
             path = Path(d) / 'm.gguf'

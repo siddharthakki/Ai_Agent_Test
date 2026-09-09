@@ -17,11 +17,22 @@ from dataclasses import dataclass, asdict
 
 GIB = 1024 ** 3
 CREATE_FLAGS = subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+if os.name == 'nt':
+    # Let blocked/missing DLLs fail normally instead of hanging a hidden child on
+    # a modal Windows error dialog. This does not bypass execution policy.
+    ctypes.windll.kernel32.SetErrorMode(0x8003)
 
 
 def run(args, timeout=20):
-    return subprocess.run(args, capture_output=True, text=True, errors='replace',
-                          timeout=timeout, creationflags=CREATE_FLAGS, check=True).stdout
+    try:
+        return subprocess.run(args, capture_output=True, text=True, errors='replace',
+                              timeout=timeout, creationflags=CREATE_FLAGS, check=True).stdout
+    except subprocess.CalledProcessError as exc:
+        if exc.returncode & 0xffffffff == 0xc0e90002:
+            raise RuntimeError('Windows blocked this runtime under its system integrity policy. '
+                               'Choose an existing approved llama-server installation in Setup. '
+                               'No Windows security settings were changed.') from exc
+        raise
 
 
 def request_json(url, body=None, timeout=30):

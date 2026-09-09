@@ -158,6 +158,9 @@ class Engine:
         while time.monotonic() < deadline:
             self.check()
             if not self.process or self.process.poll() is not None:
+                if self.process and self.process.returncode & 0xffffffff == 0xc0e90002:
+                    raise RuntimeError('Windows blocked this runtime under its system integrity policy. '
+                                       'Choose an existing approved installation in Setup.')
                 raise RuntimeError('Runtime failed to load this configuration. See ' + self.log_path.name)
             h = detect_hardware()
             if h.ram_available and h.ram_available < 2 * GIB:

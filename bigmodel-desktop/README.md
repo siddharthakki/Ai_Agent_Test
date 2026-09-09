@@ -43,6 +43,8 @@ Windows x64 and NVIDIA are the initial supported target. GPU 0 is used; multi-GP
 
 The desktop build is unsigned. Release signing and a full installer are future distribution work. The app is portable and should not be extracted into a read-only system directory.
 
+Some Windows system-integrity policies can reject a newly downloaded llama.cpp executable or DLL. The app reports this explicitly and preserves Windows security settings. Choose an existing approved runtime in Setup if this occurs. Runtime downloads can be verified successfully while execution is still blocked by the operating system.
+
 ## Development
 
 Python 3.11+ with Tk is enough to run from source. Double-click `Start BigModel.cmd`, or:

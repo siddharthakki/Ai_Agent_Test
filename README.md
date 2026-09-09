@@ -93,4 +93,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## BigModel Desktop
 
 A Windows app for discovering GGUF models and automatically testing GPU/RAM placement for models larger than GPU memory. See [BigModel Desktop](bigmodel-desktop/README.md) for downloads, setup, and the testing checklist.
-
