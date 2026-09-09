@@ -89,3 +89,7 @@ Contributions are welcome! Whether it's adding new tools to `tools.py` or refini
 
 ## 📜 License
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## BigModel Desktop
+
+A Windows app for discovering GGUF models and automatically testing GPU/RAM placement for models larger than GPU memory. See [BigModel Desktop](bigmodel-desktop/README.md) for downloads, setup, and the testing checklist.
